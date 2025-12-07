@@ -3,6 +3,7 @@ import { Footer } from "@/components/layout/footer";
 import { getSession } from "@/lib/auth";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
+import { PopupWrapper } from "@/components/popup-wrapper";
 
 export const metadata = {
   title: {
@@ -66,6 +67,8 @@ export default async function RootLayout({ children }) {
           <main className="flex-1">{children}</main>
           <Footer />
         </ToastProvider>
+
+        <PopupWrapper />
       </body>
     </html>
   );
