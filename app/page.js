@@ -1,65 +1,194 @@
+import Link from "next/link";
+import { BookOpen, Users, FileText, ArrowRight } from "lucide-react";
+import { db } from "@/lib/db";
+import { users, catatan, likes } from "@/lib/schema";
+import { eq, sql, desc } from "drizzle-orm";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { CatatanCard } from "@/components/catatan/catatan-card";
 import Image from "next/image";
 
-export default function Home() {
+async function getStats() {
+  try {
+    // 1. Ambil jumlah catatan
+    const [catatanRes] = await db
+      .select({
+        // Menggunakan mapWith(Number) agar tidak perlu konversi manual nantinya
+        count: sql`count(*)`.mapWith(Number),
+      })
+      .from(catatan);
+
+    // 2. Ambil jumlah murid
+    const [muridRes] = await db
+      .select({
+        count: sql`count(*)`.mapWith(Number),
+      })
+      .from(users)
+      .where(eq(users.role, "murid"));
+
+    // 3. Return dengan fallback value (0) jika hasil undefined
+    return {
+      catatan: catatanRes?.count || 0,
+      murid: muridRes?.count || 0,
+    };
+  } catch (error) {
+    console.error("Gagal mengambil statistik:", error);
+    // Return 0 agar halaman Home tidak crash total jika DB bermasalah
+    return {
+      catatan: 0,
+      murid: 0,
+    };
+  }
+}
+
+async function getRecentCatatan() {
+  const results = await db
+    .select({
+      id: catatan.id,
+      judul: catatan.judul,
+      mapel: catatan.mapel,
+      fotoUrl: catatan.fotoUrl,
+      createdAt: catatan.createdAt,
+      user: {
+        id: users.id,
+        name: users.name,
+      },
+    })
+    .from(catatan)
+    .leftJoin(users, eq(catatan.userId, users.id))
+    .orderBy(desc(catatan.createdAt))
+    .limit(6);
+
+  // Get counts
+  const resultsWithCounts = await Promise.all(
+    results.map(async (item) => {
+      const [likeCount] = await db
+        .select({ count: sql`count(*)` })
+        .from(likes)
+        .where(sql`${likes.catatanId} = ${item.id} AND ${likes.type} = 'like'`);
+
+      const [dislikeCount] = await db
+        .select({ count: sql`count(*)` })
+        .from(likes)
+        .where(
+          sql`${likes.catatanId} = ${item.id} AND ${likes.type} = 'dislike'`
+        );
+
+      const [commentCount] = await db
+        .select({ count: sql`count(*)` })
+        .from(likes)
+        .where(eq(likes.catatanId, item.id));
+
+      return {
+        ...item,
+        _count: {
+          likes: Number(likeCount.count),
+          dislikes: Number(dislikeCount.count),
+          comments: 0,
+        },
+      };
+    })
+  );
+
+  return resultsWithCounts;
+}
+
+export default async function Home() {
+  const stats = await getStats();
+  const recentCatatan = await getRecentCatatan();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
+    <div className="container-custom py-8 md:py-16">
+      {/* Hero Section */}
+      <section className="text-center max-w-3xl mx-auto mb-16">
+
         <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+          src="/images/itaf-nobg.png"
+          alt="Logo"
+          width={300}
+          height={100}
+          className="mx-auto"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+
+        <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-4">
+          Dokumentasi Catatan
+          <span className="text-primary-500"> Pembelajaran ITAF</span>
+        </h1>
+
+        <p className="text-gray-600 text-lg mb-8">
+          Tempat berbagi dan melihat catatan pembelajaran dari berbagai mata
+          pelajaran. Belajar bersama, berkembang bersama.
+        </p>
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link href="/catatan">
+            <Button size="lg">
+              Lihat Catatan
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </Link>
+          <Link href="/register">
+            <Button variant="secondary" size="lg">
+              Mulai Berkontribusi
+            </Button>
+          </Link>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </section>
+
+      {/* Stats */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-16">
+        {[
+          { icon: FileText, label: "Total Catatan", value: stats.catatan },
+          { icon: Users, label: "Kontributor", value: stats.murid },
+          { icon: BookOpen, label: "Mata Pelajaran", value: "11" },
+        ].map((stat, i) => (
+          <Card key={i}>
+            <CardContent className="flex items-center gap-4 py-6">
+              <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
+                <stat.icon className="w-6 h-6 text-primary-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-sm text-gray-500">{stat.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      {/* Catatan Terbaru */}
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Catatan Terbaru</h2>
+          <Link
+            href="/catatan"
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            Lihat Semua →
+          </Link>
         </div>
-      </main>
+
+        {recentCatatan.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Belum ada catatan</p>
+              <Link
+                href="/register"
+                className="text-primary-600 text-sm font-medium hover:underline"
+              >
+                Jadilah yang pertama upload!
+              </Link>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {recentCatatan.map((item) => (
+              <CatatanCard key={item.id} catatan={item} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
