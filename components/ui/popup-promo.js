@@ -4,42 +4,51 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { X, ExternalLink } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export function PopupPromo({
-  imageUrl = "/images/haidah.jpeg", // Gambar default
+  imageUrl = "/images/hadiah.jpeg", // Gambar default
   title = "Selamat Datang!",
-  description = "",
+  description = "Hadiah spesial untuk bulan ini kepada 5 penulis dengan like terbanyak!",
   linkUrl = "",
   linkText = "Selengkapnya",
   storageKey = "popup-promo-seen",
-  showOnce = true, // Hanya tampil sekali per session/selamanya
-  delayMs = 1000, // Delay sebelum muncul
+  showOnce = true,
+  delayMs = 1000,
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     // Cek apakah sudah pernah lihat
     if (showOnce) {
       const hasSeenPopup = localStorage.getItem(storageKey);
-      if (hasSeenPopup) return;
+      if (hasSeenPopup) {
+        console.log("Popup already seen, skipping...");
+        return;
+      }
     }
+
+    console.log("Popup will show in", delayMs, "ms");
 
     // Delay sebelum tampilkan popup
     const timer = setTimeout(() => {
+      console.log("Showing popup now!");
       setIsOpen(true);
+      // Trigger animation after mount
+      setTimeout(() => setIsVisible(true), 50);
     }, delayMs);
 
     return () => clearTimeout(timer);
   }, [storageKey, showOnce, delayMs]);
 
   const handleClose = () => {
-    setIsOpen(false);
-
-    if (dontShowAgain || showOnce) {
-      localStorage.setItem(storageKey, "true");
-    }
+    setIsVisible(false);
+    setTimeout(() => {
+      setIsOpen(false);
+      if (showOnce) {
+        localStorage.setItem(storageKey, "true");
+      }
+    }, 300);
   };
 
   const handleBackdropClick = (e) => {
@@ -52,10 +61,19 @@ export function PopupPromo({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+      className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 transition-all duration-300 ${
+        isVisible ? "bg-black/60" : "bg-black/0"
+      }`}
       onClick={handleBackdropClick}
+      style={{ backdropFilter: isVisible ? "blur(4px)" : "none" }}
     >
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in slide-in-from-bottom duration-300">
+      <div
+        className={`relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transition-all duration-300 ${
+          isVisible
+            ? "opacity-100 scale-100 translate-y-0"
+            : "opacity-0 scale-95 translate-y-4"
+        }`}
+      >
         {/* Close Button */}
         <button
           onClick={handleClose}
@@ -66,14 +84,28 @@ export function PopupPromo({
         </button>
 
         {/* Image */}
-        <div className="relative aspect-[4/3] bg-gray-100">
-          <Image
-            src={imageUrl}
-            alt={title}
-            fill
-            className="object-cover"
-            priority
-          />
+        <div className="relative aspect-[4/5] bg-gradient-to-br from-primary-400 to-primary-600">
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={title}
+              fill
+              className="object-cover"
+              priority
+              onError={(e) => {
+                console.log("Image failed to load, showing fallback");
+                e.target.style.display = "none";
+              }}
+            />
+          ) : null}
+
+          {/* Fallback gradient dengan text jika image gagal */}
+          {/* <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-white p-6">
+              <div className="text-6xl mb-2">📚</div>
+              <div className="text-xl font-bold">StudyShare</div>
+            </div>
+          </div> */}
         </div>
 
         {/* Content */}
@@ -105,26 +137,11 @@ export function PopupPromo({
 
             <button
               onClick={handleClose}
-              className="w-full py-2.5 px-4 text-gray-500 hover:text-gray-700 text-sm transition-colors"
+              className="w-full py-2.5 px-4 text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
             >
-              Tutup
+              Nanti saja
             </button>
           </div>
-
-          {/* Don't show again checkbox */}
-          {!showOnce && (
-            <label className="flex items-center gap-2 mt-4 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={dontShowAgain}
-                onChange={(e) => setDontShowAgain(e.target.checked)}
-                className="w-4 h-4 text-primary-500 rounded border-gray-300 focus:ring-primary-500"
-              />
-              <span className="text-xs text-gray-500">
-                Jangan tampilkan lagi
-              </span>
-            </label>
-          )}
         </div>
       </div>
     </div>
